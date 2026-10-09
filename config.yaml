@@ -1,0 +1,28 @@
+# Entries may be ticker strings or mappings with ticker, name, or isin.
+symbols:
+  - ticker: EOAN.DE
+  - ticker: RWE.DE
+  - ticker: DUK
+  - ticker: HO.PA
+  - ticker: RHM.DE
+  - ticker: OTP.BD
+  #- name: Microsoft Corporation
+  # - isin: US0378331005
+
+provider: yahoo
+period: 2y
+interval: 1d
+output_dir: reports
+analysis:
+  - sma
+  - macd
+  - rsi
+  - bollinger
+  - adx
+  - atr
+  - pivots
+  - fibonacci
+  - stochastic
+  - obv
+  - donchian
+  - ichimoku

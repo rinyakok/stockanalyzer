@@ -1,0 +1,4 @@
+pandas>=2.0
+plotly>=5.18
+PyYAML>=6.0
+yfinance>=0.2.40
