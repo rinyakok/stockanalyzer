@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#153b35">
+  <title>Market Desk</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true">MD</span>
+        <div>
+          <p class="eyebrow">PERSONAL MARKET WORKSPACE</p>
+          <h1>Market Desk</h1>
+        </div>
+      </div>
+      <p class="local-indicator"><span></span> Local analysis</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="search-band" aria-label="Instrument search">
+      <form id="searchForm">
+        <label class="query-field" for="query">
+          <span>Find an instrument</span>
+          <input id="query" name="query" type="search" placeholder="Ticker, company name, or ISIN" maxlength="120" autocomplete="off" required>
+        </label>
+        <label class="lookup-field" for="lookupMode">
+          <span>Search by</span>
+          <select id="lookupMode" name="lookupMode">
+            <option value="auto">Auto-detect</option>
+            <option value="ticker">Ticker</option>
+            <option value="name">Company name</option>
+            <option value="isin">ISIN</option>
+          </select>
+        </label>
+        <button id="analyzeButton" class="primary-action" type="submit">Analyze</button>
+      </form>
+      <div class="search-tools">
+        <label for="favorites">Favorites</label>
+        <select id="favorites" aria-label="Choose a saved favorite">
+          <option value="">No saved favorites</option>
+        </select>
+        <button id="favoriteButton" class="quiet-action" type="button" disabled>Save favorite</button>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite">Enter an instrument to load its report.</p>
+    </section>
+
+    <section class="report-stage" aria-label="Analysis report">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-rule" aria-hidden="true"></div>
+        <p class="eyebrow">ANALYSIS VIEW</p>
+        <h2>Search to begin</h2>
+        <p>Your interactive report will appear here.</p>
+      </div>
+      <iframe id="reportFrame" title="Interactive stock analysis report" hidden></iframe>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+</body>
+</html>

@@ -1,10 +1,10 @@
 # Entries may be ticker strings or mappings with ticker, name, or isin.
 symbols:
-  - ticker: EOAN.DE
-  - ticker: RWE.DE
-  - ticker: DUK
-  - ticker: HO.PA
-  - ticker: RHM.DE
+  #- ticker: EOAN.DE
+  #- ticker: RWE.DE
+  #- ticker: DUK
+  #- ticker: HO.PA
+  #- ticker: RHM.DE
   - ticker: OTP.BD
   #- name: Microsoft Corporation
   # - isin: US0378331005

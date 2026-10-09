@@ -42,7 +42,27 @@ Or specify a configuration and output directory:
 python stock_analyzer.py --config config.yaml --output reports
 ```
 
-Each report is self-contained, including its interactive Plotly chart with price, volume, and indicator panels, and is written as `reports/<ticker>_technical_analysis.html`. Volume appears directly below price, and weekends plus missing weekdays are compressed out of the time axis. Choose any chart panel from the “Open chart” selector and open it in a separate tab for a larger view. Small circles mark detected strong events such as RSI threshold hits, MACD and moving-average crosses, stochastic crosses, and Donchian breakouts. Use the multi-select “Price-chart markers” menu to choose which signal categories appear on the price panel; indicator-panel marks remain independent. Indicator visibility and marker-category selections are saved in browser storage per ticker and restored when that report is opened again. A header button switches between light and dark mode. Clicking a Donchian or Ichimoku legend item toggles that full indicator group together.
+For a one-off report, pass exactly one instrument identifier. These options bypass `config.yaml`; `--indicators` accepts one or more analysis keys and defaults to all methods when omitted:
+
+```powershell
+python stock_analyzer.py --ticker MSFT --indicators rsi macd
+python stock_analyzer.py --name "Microsoft Corporation" --indicators sma rsi
+python stock_analyzer.py --isin US0378331005
+```
+
+Available indicator keys are `sma`, `macd`, `rsi`, `bollinger`, `adx`, `atr`, `pivots`, `fibonacci`, `stochastic`, `obv`, `donchian`, and `ichimoku`. Add `--output` to choose a different report directory.
+
+## Interactive dashboard
+
+Install the requirements above, then start the local Flask server from this directory:
+
+```powershell
+python dashboard.py
+```
+
+Open `http://127.0.0.1:5000`. Search by ticker, company name, or ISIN; the dashboard resolves the instrument, downloads two years of daily prices, and displays the existing interactive report without leaving the page. Save a successful lookup as a favorite to select it from the dropdown next time. Favorites are stored in the current browser only. The existing `stock_analyzer.py` command-line workflow remains available independently.
+
+Each report is self-contained, including its interactive Plotly chart with price, volume, and indicator panels, and is written as `reports/<ticker>_technical_analysis.html`. Volume appears directly below price, and weekends plus missing weekdays are compressed out of the time axis. The current price is highlighted with a solid line and contrasting label. Moving the pointer vertically within the price panel displays the theoretical price at that exact Y position, independently of the daily close. Cross-marker tooltips identify the event and its indicator value. The Levels and scenarios section includes a shared-scale map of support/resistance zones, current price, pivot/Fibonacci references, and the ATR range. Choose any chart panel from the “Open chart” selector and open it in a separate tab for a larger view. Small circles mark detected strong events such as RSI threshold hits, MACD and moving-average crosses, stochastic crosses, and Donchian breakouts. Use the multi-select “Price-chart markers” menu to choose which signal categories appear on the price panel; indicator-panel marks remain independent. Indicator visibility and marker-category selections are saved in browser storage per ticker and restored when that report is opened again. A header button switches between light and dark mode. Clicking a Donchian or Ichimoku legend item toggles that full indicator group together.
 
 ## Included methods
 

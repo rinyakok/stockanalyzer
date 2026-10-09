@@ -1,11 +1,13 @@
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pandas as pd
 
-from stock_analyzer import METHODS, analyze, build_report, calculate_indicators, detect_signal_events, trading_xaxis_breaks
+from stock_analyzer import METHODS, analyze, build_report, calculate_indicators, detect_signal_events, main, trading_xaxis_breaks
 
 
 def sample_prices() -> pd.DataFrame:
@@ -68,6 +70,26 @@ class StockAnalyzerTests(unittest.TestCase):
 
         self.assertEqual([finding["method"] for finding in findings], [METHODS[2], METHODS[7]])
 
+    def test_cli_uses_config_when_no_direct_options_are_given(self):
+        with mock.patch.object(sys, "argv", ["stock_analyzer.py"]), mock.patch("stock_analyzer.run") as run_config:
+            main()
+
+        run_config.assert_called_once_with(Path("config.yaml"), None)
+
+    def test_cli_direct_options_bypass_config(self):
+        arguments = ["stock_analyzer.py", "--ticker", "MSFT", "--indicators", "rsi", "macd"]
+        with (
+            mock.patch.object(sys, "argv", arguments),
+            mock.patch("stock_analyzer.load_config", side_effect=AssertionError("config should not be loaded")),
+            mock.patch("stock_analyzer.generate_reports") as generate,
+        ):
+            main()
+
+        config = generate.call_args.args[0]
+        self.assertEqual(config["symbols"], [{"ticker": "MSFT"}])
+        self.assertEqual(config["analysis"], ["rsi", "macd"])
+        self.assertEqual(config["period"], "2y")
+
     def test_detects_strong_indicator_events(self):
         indicators = calculate_indicators(sample_prices())
         previous, latest = indicators.index[-2:]
@@ -121,10 +143,25 @@ class StockAnalyzerTests(unittest.TestCase):
         self.assertIn("resistance zone 2:", report)
         self.assertIn("Support zone 3:", report)
         self.assertIn("resistance zone 3:", report)
+        self.assertIn('class="level-map-svg"', report)
+        self.assertIn("Price level map", report)
+        self.assertIn("5-session ATR", report)
         self.assertIn("applyZoneVisibility(chartGraph)", report)
         self.assertIn("savedChartSettings.zoneVisibility", report)
+        self.assertIn('annotation.text?.startsWith("Current price ")', report)
         self.assertIn("annotations[${index}].visible", report)
         self.assertIn("Current", report)
+        self.assertIn("Indicator value: %{y:.2f}", report)
+        self.assertIn('id="cursorPriceReadout"', report)
+        self.assertIn("priceAxis.p2d(relativeY)", report)
+        self.assertIn('"bgcolor":"rgba(123,44,191,0.4)"', report)
+        self.assertIn('fill="rgba(123,44,191,0.4)"', report)
+        self.assertIn('"color":"#7b2cbf"', report)
+        self.assertIn('"bgcolor":"rgba(35,49,47,0.5)"', report)
+        self.assertIn('"width":2', report)
+        self.assertIn('stroke-width="2"', report)
+        self.assertIn('"dash":"solid"', report)
+        self.assertIn('"size":8', report)
         self.assertIn('"name":"Volume"', report)
         self.assertIn('"legendgroup":"donchian"', report)
         self.assertIn('"legendgroup":"ichimoku"', report)
@@ -138,6 +175,9 @@ class StockAnalyzerTests(unittest.TestCase):
         self.assertIn('item.trace.meta?.marker_panel === "price"', report)
         self.assertIn('id="chartViewSelect"', report)
         self.assertIn('id="openChartView"', report)
+        self.assertIn('id="legendToggle"', report)
+        self.assertIn("savedChartSettings.legendVisible", report)
+        self.assertIn("showlegend: legendVisible", report)
         self.assertIn('"volume":{"label":"Volume"', report)
         self.assertIn('window.open(target.href, "_blank")', report)
         self.assertIn("Plotly.react(chartGraph, selectedTraces, standaloneLayout", report)

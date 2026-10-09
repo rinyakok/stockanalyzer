@@ -1,0 +1,118 @@
+:root {
+  color-scheme: light;
+  --ink: #20312e;
+  --muted: #687773;
+  --line: #d4ddda;
+  --paper: #f2f5f2;
+  --white: #ffffff;
+  --forest: #153b35;
+  --forest-light: #24574d;
+  --signal: #d9984e;
+  --error: #a73c32;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 15px/1.45 "Aptos", "Segoe UI", sans-serif;
+}
+
+.masthead {
+  background: var(--forest);
+  color: #f4f6f1;
+  border-bottom: 3px solid var(--signal);
+}
+
+.masthead-inner {
+  max-width: 1480px;
+  min-height: 92px;
+  margin: 0 auto;
+  padding: 16px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.brand-lockup { display: flex; align-items: center; gap: 14px; }
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #8fa79e;
+  color: #f0bd77;
+  font: 700 13px/1 Georgia, serif;
+}
+.eyebrow { margin: 0 0 3px; color: #a8c0b7; font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+h1 { margin: 0; font: 600 26px/1 Georgia, serif; }
+.local-indicator { display: flex; align-items: center; gap: 8px; margin: 0; color: #c5d4ce; font-size: 12px; }
+.local-indicator span { width: 7px; height: 7px; border-radius: 50%; background: #9bc58d; }
+
+main { max-width: 1480px; margin: 0 auto; padding: 0 30px 48px; }
+.search-band { padding: 24px 0 18px; border-bottom: 1px solid var(--line); }
+#searchForm { display: grid; grid-template-columns: minmax(260px, 1fr) 190px auto; align-items: end; gap: 12px; }
+.query-field, .lookup-field { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
+input, select, button { font: inherit; }
+.query-field input, .lookup-field select, .search-tools select {
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #bfcac5;
+  border-radius: 3px;
+  background: var(--white);
+  color: var(--ink);
+}
+.query-field input:focus, .lookup-field select:focus, .search-tools select:focus { outline: 2px solid #548b79; outline-offset: 1px; }
+.primary-action, .quiet-action {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--forest);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+.primary-action { background: var(--forest); color: #fff; }
+.primary-action:hover:not(:disabled) { background: var(--forest-light); }
+.primary-action:disabled { cursor: wait; opacity: .65; }
+.search-tools { display: flex; align-items: center; gap: 9px; margin-top: 15px; }
+.search-tools label { color: var(--muted); font-size: 12px; font-weight: 650; }
+.search-tools select { width: min(310px, 55vw); height: 36px; padding-right: 28px; font-size: 13px; }
+.quiet-action { min-height: 36px; padding: 0 12px; border-color: #aebbb5; background: transparent; color: var(--forest); font-size: 12px; }
+.quiet-action:hover:not(:disabled) { background: #e4ebe6; }
+.quiet-action:disabled { cursor: default; opacity: .48; }
+.status { min-height: 19px; margin: 11px 0 0; color: var(--muted); font-size: 12px; }
+.status[data-state="error"] { color: var(--error); }
+.status[data-state="success"] { color: var(--forest-light); }
+
+.report-stage { min-height: 410px; }
+.empty-state { min-height: 360px; display: grid; align-content: center; justify-items: start; padding: 42px 4px; }
+#emptyState[hidden] { display: none; }
+.empty-rule { width: 52px; height: 3px; margin-bottom: 18px; background: var(--signal); }
+.empty-state .eyebrow { color: #798782; }
+.empty-state h2 { margin: 5px 0; font: 500 28px/1.15 Georgia, serif; }
+.empty-state p:last-child { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+#reportFrame { display: block; width: 100%; min-height: 900px; border: 0; background: var(--white); }
+#reportFrame[hidden] { display: none; }
+
+@media (max-width: 720px) {
+  .masthead-inner { min-height: 78px; padding: 14px 16px; }
+  h1 { font-size: 23px; }
+  main { padding: 0 16px 32px; }
+  #searchForm { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .query-field { grid-column: 1 / -1; }
+  .lookup-field { grid-column: 1; }
+  .primary-action { grid-column: 2; grid-row: 2; }
+  .search-tools { flex-wrap: wrap; }
+  .search-tools select { flex: 1 1 180px; }
+  .empty-state { min-height: 270px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .empty-rule { animation: rule-in .45s ease-out both; }
+  @keyframes rule-in { from { width: 0; } to { width: 52px; } }
+}

@@ -201,6 +201,95 @@ def _number(value: Any, digits: int = 2) -> str:
     return "n/a" if pd.isna(value) else f"{value:,.{digits}f}"
 
 
+def build_level_map(levels: dict[str, float], current_price: float) -> str:
+    zones = (
+        ("Support zone 1", "Support zone low", "Support zone high", "#4c9b76", 82),
+        ("Support zone 2", "Second support zone low", "Second support zone high", "#4c9b76", 104),
+        ("Support zone 3", "Third support zone low", "Third support zone high", "#4c9b76", 126),
+        ("Resistance zone 1", "Resistance zone low", "Resistance zone high", "#d76c54", 158),
+        ("Resistance zone 2", "Second resistance zone low", "Second resistance zone high", "#d76c54", 180),
+        ("Resistance zone 3", "Third resistance zone low", "Third resistance zone high", "#d76c54", 202),
+    )
+    references = tuple(
+        (label, levels.get(key))
+        for key, label in (
+            ("S2", "S2"), ("S1", "S1"), ("Pivot", "Pivot"), ("R1", "R1"), ("R2", "R2"),
+            ("Fib 38.2%", "Fib 38.2%"), ("Fib 50%", "Fib 50%"), ("Fib 61.8%", "Fib 61.8%"),
+        )
+    )
+    values = [current_price]
+    values.extend(value for _, value in references if value is not None and np.isfinite(value))
+    for _, low_key, high_key, _, _ in zones:
+        values.extend(value for value in (levels.get(low_key), levels.get(high_key)) if value is not None and np.isfinite(value))
+    atr_lower, atr_upper = levels.get("ATR lower"), levels.get("ATR upper")
+    values.extend(value for value in (atr_lower, atr_upper) if value is not None and np.isfinite(value))
+    lowest, highest = min(values), max(values)
+    padding = max((highest - lowest) * 0.08, abs(current_price) * 0.01, 0.01)
+    scale_min, scale_max = lowest - padding, highest + padding
+    scale_left, scale_right = 190, 800
+
+    def scale_x(value: float) -> float:
+        return scale_left + (value - scale_min) / (scale_max - scale_min) * (scale_right - scale_left)
+
+    svg_parts = [
+        '<svg class="level-map-svg" viewBox="0 0 1040 278" role="img" aria-labelledby="levelMapTitle levelMapDescription">',
+        '<title id="levelMapTitle">Price level map</title>',
+        '<desc id="levelMapDescription">Support and resistance zones, pivot and Fibonacci references, the ATR scenario range, and current price on a shared price scale.</desc>',
+    ]
+    if atr_lower is not None and atr_upper is not None and np.isfinite(atr_lower) and np.isfinite(atr_upper):
+        band_x = scale_x(atr_lower)
+        band_width = max(2, scale_x(atr_upper) - band_x)
+        svg_parts.append(f'<rect x="{band_x:.2f}" y="62" width="{band_width:.2f}" height="150" fill="rgba(91,125,151,0.10)"/>')
+    for label, value in references:
+        if value is not None and np.isfinite(value):
+            reference_x = scale_x(value)
+            svg_parts.append(
+                f'<line x1="{reference_x:.2f}" y1="62" x2="{reference_x:.2f}" y2="214" stroke="#728078" stroke-width="1" stroke-dasharray="3 4" opacity="0.65"><title>{html.escape(label)} {_number(value)}</title></line>'
+            )
+    for label, low_key, high_key, color, row_y in zones:
+        zone_low, zone_high = levels.get(low_key), levels.get(high_key)
+        svg_parts.append(f'<text x="8" y="{row_y + 4}" fill="#495650" font-size="12">{label}</text>')
+        if zone_low is not None and zone_high is not None and np.isfinite(zone_low) and np.isfinite(zone_high):
+            zone_x = scale_x(zone_low)
+            zone_width = max(2, scale_x(zone_high) - zone_x)
+            svg_parts.append(f'<rect x="{zone_x:.2f}" y="{row_y - 5}" width="{zone_width:.2f}" height="10" rx="2" fill="{color}" opacity="0.8"/>')
+            zone_range = f"{_number(zone_low)}–{_number(zone_high)}"
+        else:
+            zone_range = "unavailable"
+        svg_parts.append(f'<text x="820" y="{row_y + 4}" fill="#495650" font-size="12">{zone_range}</text>')
+
+    svg_parts.append('<line x1="190" y1="230" x2="800" y2="230" stroke="#66716c" stroke-width="1.5"/>')
+    for tick_index in range(5):
+        tick_value = scale_min + (scale_max - scale_min) * tick_index / 4
+        tick_x = scale_x(tick_value)
+        svg_parts.append(f'<line x1="{tick_x:.2f}" y1="225" x2="{tick_x:.2f}" y2="235" stroke="#66716c"/>')
+        svg_parts.append(f'<text x="{tick_x:.2f}" y="254" fill="#66716c" font-size="11" text-anchor="middle">{_number(tick_value)}</text>')
+    current_x = scale_x(current_price)
+    current_label_x = min(max(current_x - 58, scale_left), scale_right - 116)
+    svg_parts.extend((
+        f'<line x1="{current_x:.2f}" y1="24" x2="{current_x:.2f}" y2="236" stroke="#7b2cbf" stroke-width="2"/>',
+        f'<rect x="{current_label_x:.2f}" y="4" width="116" height="22" rx="3" fill="rgba(123,44,191,0.4)"/>',
+        f'<text x="{current_label_x + 58:.2f}" y="19" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">Current {_number(current_price)}</text>',
+        '</svg>',
+    ))
+
+    legend_items = [
+        '<li><span class="level-map-key support"></span>Support zones</li>',
+        '<li><span class="level-map-key resistance"></span>Resistance zones</li>',
+        '<li><span class="level-map-key current"></span>Current price</li>',
+    ]
+    if atr_lower is not None and atr_upper is not None and np.isfinite(atr_lower) and np.isfinite(atr_upper):
+        legend_items.append(f'<li><span class="level-map-key atr"></span>5-session ATR {_number(atr_lower)}–{_number(atr_upper)}</li>')
+    for label, value in references:
+        if value is not None and np.isfinite(value):
+            legend_items.append(f'<li><span class="level-map-key reference"></span>{html.escape(label)} {_number(value)}</li>')
+    return (
+        '<figure class="level-map"><figcaption>Price level map</figcaption>'
+        f'<div class="level-map-scroll">{"".join(svg_parts)}</div>'
+        f'<ul class="level-map-legend">{"".join(legend_items)}</ul></figure>'
+    )
+
+
 def analyze(
     indicators: pd.DataFrame, selected_methods: list[str] | None = None
 ) -> tuple[list[dict[str, str]], dict[str, float]]:
@@ -493,7 +582,20 @@ def create_chart(indicators: pd.DataFrame, levels: dict[str, float], symbol: str
         zone_low, zone_high = levels[low_key], levels[high_key]
         if np.isfinite(zone_low) and np.isfinite(zone_high):
             figure.add_hrect(y0=zone_low, y1=zone_high, fillcolor=color, line_width=0, layer="below", name=label, annotation_text=label, annotation_position="top left", row=1, col=1)
-    figure.add_hline(y=current_price, line_color="#263b39", line_dash="dash", line_width=1.5, annotation_text=f"Current {_number(current_price)}", annotation_position="top right", row=1, col=1)
+    figure.add_hline(
+        y=current_price,
+        line_color="#7b2cbf",
+        line_dash="solid",
+        line_width=2,
+        annotation_text=f"Current price {_number(current_price)}",
+        annotation_position="top right",
+        annotation_font={"color": "#ffffff", "size": 8},
+        annotation_bgcolor="rgba(123,44,191,0.4)",
+        annotation_bordercolor="rgba(123,44,191,0.4)",
+        annotation_borderpad=4,
+        row=1,
+        col=1,
+    )
 
     volume_colors = ["#4c9b76" if close >= open_price else "#d76c54" for open_price, close in zip(chart_data["Open"], chart_data["Close"])]
     figure.add_trace(go.Bar(x=chart_data.index, y=chart_data["Volume"], name="Volume", marker_color=volume_colors, opacity=0.7), row=2, col=1)
@@ -521,16 +623,21 @@ def create_chart(indicators: pd.DataFrame, levels: dict[str, float], symbol: str
         key = (event["panel"], event["label"], event["tone"])
         grouped_events.setdefault(key, []).append(event)
     for (panel, label, tone), points in grouped_events.items():
+        hovertemplate = (
+            "%{text}<br>%{x|%Y-%m-%d}<extra></extra>"
+            if panel == "price"
+            else "%{text}<br>%{x|%Y-%m-%d}<br>Indicator value: %{y:.2f}<extra></extra>"
+        )
         figure.add_trace(
             go.Scatter(
                 x=[point["index"] for point in points],
                 y=[point["value"] for point in points],
-                customdata=[point["price"] for point in points],
                 text=[point["label"] for point in points],
                 mode="markers",
                 name=f"{label} markers" if panel == "price" else f"{label} ({panel})",
                 marker={"symbol": "circle", "size": 9, "color": event_colors[tone], "line": {"color": "#ffffff", "width": 1.2}},
-                hovertemplate="%{text}<br>%{x|%Y-%m-%d}<br>Price: %{customdata:.2f}<extra></extra>",
+                hovertemplate=hovertemplate,
+                hoverlabel={"bgcolor": "rgba(35,49,47,0.5)", "font": {"color": "#ffffff"}},
                 meta={"marker_category": points[0]["category"], "marker_panel": panel},
                 showlegend=panel == "price",
             ),
@@ -542,6 +649,7 @@ def create_chart(indicators: pd.DataFrame, levels: dict[str, float], symbol: str
         height=1030,
         margin={"l": 55, "r": 35, "t": 190, "b": 40},
         hovermode="x unified",
+        hoverlabel={"bgcolor": "rgba(35,49,47,0.5)", "font": {"color": "#ffffff"}},
         xaxis_rangeslider_visible=False,
         legend={
             "orientation": "h",
@@ -557,6 +665,11 @@ def create_chart(indicators: pd.DataFrame, levels: dict[str, float], symbol: str
         },
         font={"family": "Arial, sans-serif", "color": "#25312f"},
     )
+    current_annotation = next(
+        annotation for annotation in figure.layout.annotations
+        if annotation.text == f"Current price {_number(current_price)}"
+    )
+    current_annotation.font = {"color": "#ffffff", "size": 8}
     figure.update_xaxes(rangebreaks=trading_xaxis_breaks(chart_data.index))
     figure.update_yaxes(title_text="Price", row=1, col=1)
     figure.update_yaxes(title_text="Volume", row=2, col=1)
@@ -635,7 +748,9 @@ def build_report(
         f"61.8% {_number(levels.get('Fib 61.8%'))}. "
         f"Illustrative five-session ATR envelope: {_number(levels.get('ATR lower'))} to {_number(levels.get('ATR upper'))}."
     )
+    level_map = build_level_map(levels, close)
     chart = create_chart(indicators, levels, symbol)
+    chart += '<output id="cursorPriceReadout" class="cursor-price-readout" role="status" aria-live="off"></output>'
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -655,6 +770,8 @@ def build_report(
     .table-wrap {{ overflow-x:auto; background:var(--white); border:1px solid var(--line) }} table {{ width:100%; border-collapse:collapse; min-width:760px }} th,td {{ text-align:left; vertical-align:top; padding:12px 14px; border-bottom:1px solid var(--line) }} th {{ background:var(--surface-muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em }}
     .tag {{ display:inline-block; padding:2px 7px; border:1px solid #cbd3cc; border-radius:3px; white-space:nowrap }}
     .signal-bullish {{ color:#1f6543; background:#e1f0e5; border-color:#a8cbb1 }} .signal-bearish {{ color:#923f2e; background:#f9e6df; border-color:#e5b5a7 }} .signal-neutral {{ color:#59636d; background:#eef0f2; border-color:#cbd1d6 }}
+    .level-map {{ margin:18px 0 22px }} .level-map figcaption {{ margin-bottom:8px; font-weight:600 }} .level-map-scroll {{ overflow-x:auto }} .level-map-svg {{ display:block; width:100%; min-width:760px; height:auto }} .level-map-legend {{ display:flex; flex-wrap:wrap; gap:7px 18px; margin:8px 0 0; padding:0; list-style:none; color:var(--detail); font-size:12px }} .level-map-legend li {{ display:flex; align-items:center; gap:6px; white-space:nowrap }} .level-map-key {{ display:inline-block; flex:0 0 18px; height:0; border-top:2px solid }} .level-map-key.support {{ border-color:#4c9b76 }} .level-map-key.resistance {{ border-color:#d76c54 }} .level-map-key.current {{ border-color:#7b2cbf }} .level-map-key.reference {{ border-color:#728078; border-top-style:dashed }} .level-map-key.atr {{ height:9px; border:0; background:rgba(91,125,151,0.25) }}
+    .cursor-price-readout {{ position:fixed; z-index:30; display:none; transform:translateY(-50%); padding:5px 8px; border:1px solid rgba(35,49,47,.5); border-radius:3px; background:rgba(35,49,47,.5); color:#fff; font:600 12px Arial,sans-serif; white-space:nowrap; pointer-events:none }}
     body[data-theme="dark"] .signal-bullish {{ color:#a6e4b8; background:#253b30; border-color:#466e55 }} body[data-theme="dark"] .signal-bearish {{ color:#ffb4a5; background:#452e2b; border-color:#805149 }} body[data-theme="dark"] .signal-neutral {{ color:#d2d8dc; background:#343c41; border-color:#59636b }}
     .header-actions {{ display:flex; align-items:center; gap:18px }} .theme-toggle {{ border:1px solid var(--line); border-radius:3px; padding:8px 11px; background:var(--white); color:var(--ink); font:600 13px Arial,sans-serif; cursor:pointer }} .theme-toggle:hover,.theme-toggle:focus-visible {{ outline:2px solid var(--accent); outline-offset:2px }}
     .chart-heading {{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:32px }} .chart-heading h2 {{ margin:0 0 12px }} .chart-controls {{ display:flex; flex-wrap:wrap; align-items:center; gap:8px }} .chart-picker-label {{ color:var(--muted); font-size:13px }} .chart-view-select {{ max-width:180px; border:1px solid var(--line); border-radius:3px; padding:7px 9px; background:var(--white); color:var(--ink); font:13px Arial,sans-serif }} .open-chart-button {{ border:1px solid var(--line); border-radius:3px; padding:8px 10px; background:var(--white); color:var(--ink); font:600 13px Arial,sans-serif; cursor:pointer }} .open-chart-button:hover,.open-chart-button:focus-visible {{ outline:2px solid var(--accent); outline-offset:2px }} .marker-picker,.zone-picker {{ position:relative; z-index:5; margin-bottom:12px }} .marker-picker summary,.zone-picker summary {{ cursor:pointer; border:1px solid var(--line); border-radius:3px; padding:7px 10px; background:var(--white); color:var(--ink); font-size:13px; list-style:none }} .marker-picker summary::-webkit-details-marker,.zone-picker summary::-webkit-details-marker {{ display:none }} .marker-picker summary::after,.zone-picker summary::after {{ content:" ▾"; color:var(--muted) }} .marker-picker[open] summary::after,.zone-picker[open] summary::after {{ content:" ▴" }}
@@ -672,8 +789,8 @@ def build_report(
   <header><div><p class="muted">TECHNICAL ANALYSIS REPORT</p><h1>{html.escape(label)}</h1><p class="muted">Yahoo Finance symbol: {html.escape(symbol)} · {html.escape(str(prices.index[0].date()))} to {html.escape(str(prices.index[-1].date()))}</p></div>
     <div class="header-actions"><button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">Dark mode</button><div class="quote"><strong>{_number(close)}</strong><span class="{signal_class}">{change_pct:+.2f}% latest session</span></div></div></header>
     <section class="summary"><strong>Signal balance: <span class="positive">{bullish} bullish</span> / <span class="negative">{bearish} bearish</span> / {neutral} neutral or mixed</strong><p>Color-coded readings are technical context, not a forecast. Mixed signals are common; review the individual methods and levels below.</p></section>
-    <div class="chart-heading"><h2 id="chartHeading">Price and indicators</h2><div class="chart-controls"><details class="marker-picker"><summary>Price-chart markers</summary><div class="marker-options" role="group" aria-label="Select price-chart marker categories">{marker_options}</div></details><details class="zone-picker"><summary>S/R zones</summary><div class="marker-options" role="group" aria-label="Choose support and resistance zones">{zone_options}</div></details><label class="chart-picker-label" for="chartViewSelect">Open chart</label><select class="chart-view-select" id="chartViewSelect">{chart_view_options}</select><button class="open-chart-button" id="openChartView" type="button">Open separately</button></div></div><div class="chart">{chart}</div><p class="muted"><span class="zone-key zone-support"></span>Support zones <span class="zone-key zone-resistance"></span>Resistance zones <span class="zone-key price-key"></span>Current price</p><a id="backToReport" href="">Back to full report</a>
-    <h2>Levels and scenarios</h2><p>{html.escape(price_targets)}</p><p class="muted">Dashed chart lines mark pivot and Fibonacci references; their exact values are listed above. They are not guaranteed support, resistance, or target prices.</p>
+    <div class="chart-heading"><h2 id="chartHeading">Price and indicators</h2><div class="chart-controls"><details class="marker-picker"><summary>Price-chart markers</summary><div class="marker-options" role="group" aria-label="Select price-chart marker categories">{marker_options}</div></details><details class="zone-picker"><summary>S/R zones</summary><div class="marker-options" role="group" aria-label="Choose support and resistance zones">{zone_options}</div></details><label class="chart-picker-label" for="chartViewSelect">Open chart</label><select class="chart-view-select" id="chartViewSelect">{chart_view_options}</select><button class="open-chart-button" id="legendToggle" type="button" aria-pressed="true">Hide legend</button><button class="open-chart-button" id="openChartView" type="button">Open separately</button></div></div><div class="chart">{chart}</div><p class="muted"><span class="zone-key zone-support"></span>Support zones <span class="zone-key zone-resistance"></span>Resistance zones <span class="zone-key price-key"></span>Current price</p><a id="backToReport" href="">Back to full report</a>
+    <h2>Levels and scenarios</h2><p>{html.escape(price_targets)}</p>{level_map}<p class="muted">Dashed chart lines mark pivot and Fibonacci references; their exact values are listed above. They are not guaranteed support, resistance, or target prices.</p>
     <h2>{len(findings)}-method analysis</h2><div class="table-wrap"><table><thead><tr><th>Method</th><th>Reading</th><th>Details</th></tr></thead><tbody>{table_rows}</tbody></table></div>
     <dialog id="methodHelp" aria-labelledby="helpTitle"><button class="dialog-close" id="closeHelp" type="button">Close</button><h3 id="helpTitle"></h3><p id="helpText"></p></dialog>
     <script>
@@ -706,7 +823,10 @@ def build_report(
                     layout[`${{axis}}.zerolinecolor`] = gridColor;
                     layout[`${{axis}}.color`] = textColor;
                 }});
-                (graph.layout.annotations || []).forEach((_, index) => {{ layout[`annotations[${{index}}].font.color`] = textColor; }});
+                (graph.layout.annotations || []).forEach((annotation, index) => {{
+                    const annotationColor = annotation.text?.startsWith("Current price ") ? "#ffffff" : textColor;
+                    layout[`annotations[${{index}}].font.color`] = annotationColor;
+                }});
                 Plotly.relayout(graph, layout);
             }});
         }}
@@ -728,6 +848,7 @@ def build_report(
         if (!savedChartSettings.hiddenTraces || typeof savedChartSettings.hiddenTraces !== "object") savedChartSettings.hiddenTraces = {{}};
         if (!savedChartSettings.markerCategories || typeof savedChartSettings.markerCategories !== "object") savedChartSettings.markerCategories = {{}};
         if (!savedChartSettings.zoneVisibility || typeof savedChartSettings.zoneVisibility !== "object") savedChartSettings.zoneVisibility = {{}};
+        let legendVisible = typeof savedChartSettings.legendVisible === "boolean" ? savedChartSettings.legendVisible : true;
         const legacyZonesVisible = typeof savedChartSettings.zonesVisible === "boolean" ? savedChartSettings.zonesVisible : true;
         document.querySelectorAll(".marker-filter").forEach((checkbox) => {{
             if (typeof savedChartSettings.markerCategories[checkbox.value] === "boolean") {{
@@ -757,6 +878,7 @@ def build_report(
             savedChartSettings.hiddenTraces = hiddenTraces;
             savedChartSettings.markerCategories = markerCategories;
             savedChartSettings.zoneVisibility = zoneVisibility;
+            savedChartSettings.legendVisible = legendVisible;
             try {{ localStorage.setItem(chartSettingsKey, JSON.stringify(savedChartSettings)); }} catch {{}}
         }}
         function applyPriceMarkerFilter(graph, checkbox) {{
@@ -781,6 +903,19 @@ def build_report(
         }}
         const chartGraph = document.querySelector(".js-plotly-plot");
         if (chartGraph) {{
+            const legendToggle = document.getElementById("legendToggle");
+            const updateLegendToggle = () => {{
+                legendToggle.textContent = legendVisible ? "Hide legend" : "Show legend";
+                legendToggle.setAttribute("aria-pressed", String(legendVisible));
+            }};
+            updateLegendToggle();
+            Plotly.relayout(chartGraph, {{showlegend: legendVisible}});
+            legendToggle.addEventListener("click", () => {{
+                legendVisible = !legendVisible;
+                updateLegendToggle();
+                Plotly.relayout(chartGraph, {{showlegend: legendVisible}});
+                saveChartSettings();
+            }});
             const hiddenIndexes = chartGraph.data.map((trace, index) => ({{trace, index}}))
                 .filter((item) => savedChartSettings.hiddenTraces[traceSettingsId(item.trace)])
                 .map((item) => item.index);
@@ -809,6 +944,31 @@ def build_report(
             }});
             const requestedChart = new URLSearchParams(window.location.search).get("chartView");
             document.querySelector(".zone-picker").hidden = Boolean(requestedChart && requestedChart !== "price");
+            if (!requestedChart || requestedChart === "price") {{
+                const cursorPriceReadout = document.getElementById("cursorPriceReadout");
+                const hideCursorPriceReadout = () => {{ cursorPriceReadout.style.display = "none"; }};
+                chartGraph.addEventListener("mousemove", (event) => {{
+                    const graphBounds = chartGraph.getBoundingClientRect();
+                    const layout = chartGraph._fullLayout;
+                    const priceAxis = layout.yaxis;
+                    const relativeX = event.clientX - graphBounds.left - layout._size.l;
+                    const relativeY = event.clientY - graphBounds.top - priceAxis._offset;
+                    if (relativeX < 0 || relativeX > layout._size.w || relativeY < 0 || relativeY > priceAxis._length) {{
+                        hideCursorPriceReadout();
+                        return;
+                    }}
+                    const cursorPrice = priceAxis.p2d(relativeY);
+                    if (!Number.isFinite(cursorPrice)) {{
+                        hideCursorPriceReadout();
+                        return;
+                    }}
+                    cursorPriceReadout.textContent = `Cursor price: ${{cursorPrice.toFixed(2)}}`;
+                    cursorPriceReadout.style.display = "block";
+                    cursorPriceReadout.style.left = `${{Math.max(8, Math.min(event.clientX + 12, window.innerWidth - cursorPriceReadout.offsetWidth - 8))}}px`;
+                    cursorPriceReadout.style.top = `${{Math.max(8, Math.min(event.clientY, window.innerHeight - 8))}}px`;
+                }});
+                chartGraph.addEventListener("mouseleave", hideCursorPriceReadout);
+            }}
             if (chartGraph && chartViewOptions[requestedChart]) {{
                 const view = chartViewOptions[requestedChart];
                 const axisSuffix = view.yaxis === "y" ? "" : view.yaxis.slice(1);
@@ -851,7 +1011,7 @@ def build_report(
                     plot_bgcolor: chartGraph.layout.plot_bgcolor,
                     font: chartGraph.layout.font,
                     hovermode: chartGraph.layout.hovermode,
-                    showlegend: chartGraph.layout.showlegend,
+                    showlegend: legendVisible,
                     legend: chartGraph.layout.legend,
                     margin: {{l: 65, r: 35, t: 70, b: 55}},
                     height: Math.max(620, window.innerHeight - 80),
@@ -880,9 +1040,7 @@ def build_report(
     )
 
 
-def load_config(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file) or {}
+def validate_config(config: Any) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise ValueError("The YAML configuration must contain an object at its root.")
     symbols = config.get("symbols")
@@ -907,8 +1065,13 @@ def load_config(path: Path) -> dict[str, Any]:
     return config
 
 
-def run(config_path: Path, output_override: Path | None = None) -> list[Path]:
-    config = load_config(config_path)
+def load_config(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as config_file:
+        config = yaml.safe_load(config_file) or {}
+    return validate_config(config)
+
+
+def generate_reports(config: dict[str, Any], output_override: Path | None = None) -> list[Path]:
     output_dir = output_override or Path(config["output_dir"])
     generated_reports = []
     for instrument in config["symbols"]:
@@ -924,13 +1087,38 @@ def run(config_path: Path, output_override: Path | None = None) -> list[Path]:
     return generated_reports
 
 
+def run(config_path: Path, output_override: Path | None = None) -> list[Path]:
+    return generate_reports(load_config(config_path), output_override)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate technical-analysis HTML reports for configured equities.")
+    parser = argparse.ArgumentParser(description="Generate technical-analysis HTML reports for configured or specified equities.")
     parser.add_argument("--config", type=Path, default=Path("config.yaml"), help="YAML configuration file (default: config.yaml)")
     parser.add_argument("--output", type=Path, help="Override the configured output directory")
+    identity = parser.add_mutually_exclusive_group()
+    identity.add_argument("--ticker", help="Generate a report for a Yahoo Finance ticker")
+    identity.add_argument("--name", help="Search Yahoo Finance for an equity by name")
+    identity.add_argument("--isin", help="Search Yahoo Finance for an equity by ISIN")
+    parser.add_argument(
+        "--indicators",
+        nargs="+",
+        choices=ANALYSIS_KEYS,
+        metavar="KEY",
+        help=f"Analysis keys to include (default: all); choices: {', '.join(ANALYSIS_KEYS)}",
+    )
     arguments = parser.parse_args()
     try:
-        run(arguments.config, arguments.output)
+        instrument_key = next((key for key in ("ticker", "name", "isin") if getattr(arguments, key)), None)
+        if instrument_key or arguments.indicators:
+            if instrument_key is None:
+                parser.error("--indicators requires one of --ticker, --name, or --isin.")
+            config = validate_config({
+                "symbols": [{instrument_key: getattr(arguments, instrument_key)}],
+                "analysis": arguments.indicators or list(ANALYSIS_KEYS),
+            })
+            generate_reports(config, arguments.output)
+        else:
+            run(arguments.config, arguments.output)
     except (OSError, ValueError, KeyError) as error:
         parser.error(str(error))
 
